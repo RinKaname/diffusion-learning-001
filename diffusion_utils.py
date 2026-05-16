@@ -56,6 +56,11 @@ class NoiseScheduler:
         if noise is None:
             noise = torch.randn_like(x_0)
         
+        # Ensure buffers are on the same device as input
+        if self.sqrt_alphas_cumprod.device != x_0.device:
+            self.sqrt_alphas_cumprod = self.sqrt_alphas_cumprod.to(x_0.device)
+            self.sqrt_one_minus_alphas_cumprod = self.sqrt_one_minus_alphas_cumprod.to(x_0.device)
+        
         # Get sqrt(alpha_bar) and sqrt(1-alpha_bar) for each timestep
         sqrt_alpha_bar = self.sqrt_alphas_cumprod[t].view(-1, 1, 1, 1)
         sqrt_one_minus_alpha_bar = self.sqrt_one_minus_alphas_cumprod[t].view(-1, 1, 1, 1)

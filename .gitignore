@@ -1,8 +1,1 @@
-```gitignore
-# Compiled and build artifacts
-*.pyc
-__pycache__/
-
-# Test outputs
-test_outputs/
-```
+(diffusion_utils.py is a source file, and there are no build artifacts, dependencies, or temp files in the changes)
