@@ -6,6 +6,7 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 import argparse
+from torchvision.utils import save_image
 
 from diffusion_model import UNet
 from diffusion_utils import NoiseScheduler, sample_diffusion
