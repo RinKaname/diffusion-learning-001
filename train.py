@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms
 from pathlib import Path
 import numpy as np
 from PIL import Image
@@ -10,6 +9,21 @@ import argparse
 
 from diffusion_model import UNet
 from diffusion_utils import NoiseScheduler, sample_diffusion
+
+
+def simple_transform(image: Image.Image, img_size: int = 64) -> torch.Tensor:
+    """Simple transform without torchvision dependencies."""
+    # Resize
+    image = image.resize((img_size, img_size), Image.BILINEAR)
+    
+    # Convert to tensor and normalize to [-1, 1]
+    img_array = np.array(image).astype(np.float32) / 255.0  # [0, 1]
+    img_array = (img_array - 0.5) / 0.5  # [-1, 1]
+    
+    # HWC -> CHW
+    img_tensor = torch.from_numpy(img_array.transpose(2, 0, 1))
+    
+    return img_tensor
 
 
 class AnimeFaceDataset(Dataset):
@@ -28,13 +42,6 @@ class AnimeFaceDataset(Dataset):
             raise ValueError(f"No images found in {root_dir}")
         
         print(f"Found {len(self.image_paths)} images")
-        
-        # Transform to normalize images to [-1, 1]
-        self.transform = transforms.Compose([
-            transforms.Resize((img_size, img_size)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
-        ])
     
     def __len__(self):
         return len(self.image_paths)
@@ -42,7 +49,7 @@ class AnimeFaceDataset(Dataset):
     def __getitem__(self, idx):
         img_path = self.image_paths[idx]
         image = Image.open(img_path).convert('RGB')
-        return self.transform(image)
+        return simple_transform(image, self.img_size)
 
 
 def train_epoch(
@@ -109,8 +116,8 @@ def generate_samples(
     samples = (samples + 1) / 2
     
     if save_path:
-        # Save as grid
-        from torchvision.utils import save_image
+        # Save as grid (using custom function to avoid torchvision)
+        from pathlib import Path
         save_image(samples, save_path, nrow=4)
         print(f"Saved samples to {save_path}")
     
