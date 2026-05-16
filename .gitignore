@@ -1,4 +1,8 @@
-```
-__pycache__/
+```gitignore
+# Compiled and build artifacts
 *.pyc
+__pycache__/
+
+# Test outputs
+test_outputs/
 ```
