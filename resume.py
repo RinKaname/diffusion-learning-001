@@ -54,11 +54,9 @@ def resume_training(args):
     
     # 3. Initialize Model & Scheduler (Must match original config)
     model = UNet(
-        image_size=64,
+        img_size=64,
         base_channels=model_params.get('base_channels', 128),
-        channel_multipliers=model_params.get('channel_multipliers', (1, 2, 4)),
-        num_res_blocks=model_params.get('num_res_blocks', 2),
-        attn_levels=model_params.get('attn_levels', (2,)) # Assuming bottleneck attention
+        ch_mult=model_params.get('channel_multipliers', (1, 2, 4))
     ).to(device)
     
     # Load weights
