@@ -63,7 +63,7 @@ def resume_training(args):
     model.load_state_dict(checkpoint['model_state_dict'])
     print(f"Loaded model from Epoch {checkpoint.get('epoch', 'N/A')} (Loss: {checkpoint.get('loss', 'N/A')})")
 
-    scheduler = NoiseScheduler(num_steps=1000, schedule_type='cosine')
+    scheduler = NoiseScheduler(num_timesteps=1000, schedule_type='cosine')
 
     # 4. Setup Optimizer (Must match original config to restore state correctly)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
@@ -108,7 +108,7 @@ def resume_training(args):
             optimizer.zero_grad()
 
             # Forward pass
-            t = torch.randint(0, scheduler.num_steps, (batch.size(0),), device=device)
+            t = torch.randint(0, scheduler.num_timesteps, (batch.size(0),), device=device)
             x_noisy, noise = scheduler.add_noise(batch, t)
             
             if scaler is not None:
