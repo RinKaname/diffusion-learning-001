@@ -150,6 +150,9 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     
+    checkpoints_dir = output_dir / 'checkpoints'
+    checkpoints_dir.mkdir(parents=True, exist_ok=True)
+
     # Initialize model and scheduler
     print("Initializing model...")
     model = UNet(img_size=64, base_channels=128).to(device)
@@ -210,7 +213,7 @@ def main():
                 'optimizer_state_dict': optimizer.state_dict(),
                 'scaler_state_dict': scaler.state_dict() if scaler else None,
                 'loss': avg_loss,
-            }, output_dir / f'checkpoint_epoch_{epoch+1}.pth')
+            }, checkpoints_dir / f'checkpoint_epoch_{epoch}.pth')
     
     # Final sample generation
     print("\nGenerating final samples...")
