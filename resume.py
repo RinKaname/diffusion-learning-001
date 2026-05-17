@@ -44,8 +44,13 @@ def resume_training(args):
     
     # 2. Load Checkpoint
     checkpoint = torch.load(checkpoint_path, map_location=device)
-    start_epoch = checkpoint['epoch'] + 1
-    model_params = checkpoint['model_params'] # Get original arch params
+    start_epoch = checkpoint.get('epoch', 0) + 1
+    model_params = checkpoint.get('model_params', {
+        'base_channels': 128,
+        'channel_multipliers': (1, 2, 4),
+        'num_res_blocks': 2,
+        'attn_levels': (2,)
+    }) # Get original arch params or default
     
     # 3. Initialize Model & Scheduler (Must match original config)
     model = UNet(
@@ -58,13 +63,14 @@ def resume_training(args):
     
     # Load weights
     model.load_state_dict(checkpoint['model_state_dict'])
-    print(f"Loaded model from Epoch {checkpoint['epoch']} (Loss: {checkpoint['loss']:.4f})")
+    print(f"Loaded model from Epoch {checkpoint.get('epoch', 'N/A')} (Loss: {checkpoint.get('loss', 'N/A')})")
 
     scheduler = NoiseScheduler(num_steps=1000, schedule_type='cosine')
 
     # 4. Setup Optimizer (Must match original config to restore state correctly)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
-    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    if 'optimizer_state_dict' in checkpoint:
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     
     # Move optimizer state to device (sometimes needed if loading from CPU)
     for state in optimizer.state.values():
