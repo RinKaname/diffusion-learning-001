@@ -156,7 +156,11 @@ def sample_diffusion(
             
             # Add variance (optional, can be deterministic)
             if variance > 0:
-                x += torch.randn_like(x) * torch.sqrt(torch.tensor(variance, device=device, dtype=torch.float32))
+                if isinstance(variance, torch.Tensor):
+                    var_tensor = variance.clone().detach().to(device=device, dtype=torch.float32)
+                else:
+                    var_tensor = torch.tensor(variance, device=device, dtype=torch.float32)
+                x += torch.randn_like(x) * torch.sqrt(var_tensor)
     
     return torch.clamp(x, -1, 1)
 
