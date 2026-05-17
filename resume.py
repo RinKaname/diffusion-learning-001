@@ -28,11 +28,17 @@ def resume_training(args):
     print(f"Using device: {device}")
 
     # 1. Find Checkpoint
-    checkpoint_path = get_latest_checkpoint(args.output_dir)
-    if not checkpoint_path:
-        print(f"❌ No checkpoint found in {args.output_dir}/checkpoints")
-        print("Please ensure you have run training at least once.")
-        return
+    if args.checkpoint_path:
+        checkpoint_path = args.checkpoint_path
+        if not os.path.exists(checkpoint_path):
+            print(f"❌ Checkpoint not found at provided path: {checkpoint_path}")
+            return
+    else:
+        checkpoint_path = get_latest_checkpoint(args.output_dir)
+        if not checkpoint_path:
+            print(f"❌ No checkpoint found in {args.output_dir}/checkpoints")
+            print("Please ensure you have run training at least once.")
+            return
 
     print(f"✅ Resuming from: {checkpoint_path}")
     
@@ -124,7 +130,9 @@ def resume_training(args):
 
         # Save Checkpoint every epoch (or customize logic)
         if (epoch + 1) % args.save_every == 0:
-            save_path = os.path.join(args.output_dir, 'checkpoints', f'checkpoint_epoch_{epoch}.pth')
+            checkpoints_dir = os.path.join(args.output_dir, 'checkpoints')
+            os.makedirs(checkpoints_dir, exist_ok=True)
+            save_path = os.path.join(checkpoints_dir, f'checkpoint_epoch_{epoch}.pth')
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
@@ -146,6 +154,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Resume Diffusion Training')
     parser.add_argument('--data_dir', type=str, required=True, help='Path to anime face dataset')
     parser.add_argument('--output_dir', type=str, default='./results', help='Directory with existing checkpoints')
+    parser.add_argument('--checkpoint_path', type=str, default=None, help='Direct path to a checkpoint file (bypasses automatic latest discovery)')
     parser.add_argument('--total_epochs', type=int, default=100, help='Target total epochs to reach')
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size')
     parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate')
