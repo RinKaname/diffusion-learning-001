@@ -157,12 +157,12 @@ def resume_training(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Resume Diffusion Training')
     parser.add_argument('--data_dir', type=str, required=True, help='Path to anime face dataset')
-    parser.add_argument('--output_dir', type=str, default='./results', help='Directory with existing checkpoints')
+    parser.add_argument('--output_dir', type=str, default='./outputs', help='Directory with existing checkpoints')
     parser.add_argument('--checkpoint_path', type=str, default=None, help='Direct path to a checkpoint file (bypasses automatic latest discovery)')
     parser.add_argument('--total_epochs', type=int, default=100, help='Target total epochs to reach')
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size')
     parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate')
-    parser.add_argument('--save_every', type=int, default=5, help='Save checkpoint every N epochs')
+    parser.add_argument('--save_every', type=int, default=1, help='Save checkpoint every N epochs')
     
     args = parser.parse_args()
     resume_training(args)
