@@ -66,9 +66,14 @@ def resume_training(args):
             if isinstance(v, torch.Tensor):
                 state[k] = v.to(device)
 
+    # 4.5. Setup AMP Scaler
+    scaler = torch.amp.GradScaler(device.type) if device.type == 'cuda' else None
+    if scaler is not None and 'scaler_state_dict' in checkpoint and checkpoint['scaler_state_dict'] is not None:
+        scaler.load_state_dict(checkpoint['scaler_state_dict'])
+
     # 5. Dataset & Dataloader
     print(f"Loading dataset from {args.data_dir}...")
-    dataset = AnimeFaceDataset(args.data_dir, image_size=64)
+    dataset = AnimeFaceDataset(args.data_dir, img_size=64) # fix param name for AnimeFaceDataset
     print(f"Found {len(dataset)} images")
     
     dataloader = DataLoader(
@@ -96,13 +101,19 @@ def resume_training(args):
             t = torch.randint(0, scheduler.num_steps, (batch.size(0),), device=device)
             x_noisy, noise = scheduler.add_noise(batch, t)
             
-            predicted_noise = model(x_noisy, t)
-            
-            loss = torch.nn.functional.mse_loss(predicted_noise, noise)
-            
-            # Backward pass
-            loss.backward()
-            optimizer.step()
+            if scaler is not None:
+                with torch.amp.autocast(device_type='cuda' if device.type == 'cuda' else 'cpu'):
+                    predicted_noise = model(x_noisy, t)
+                    loss = torch.nn.functional.mse_loss(predicted_noise, noise)
+
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                predicted_noise = model(x_noisy, t)
+                loss = torch.nn.functional.mse_loss(predicted_noise, noise)
+                loss.backward()
+                optimizer.step()
 
             total_loss += loss.item()
             num_batches += 1
@@ -118,6 +129,7 @@ def resume_training(args):
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
+                'scaler_state_dict': scaler.state_dict() if scaler else None,
                 'loss': avg_loss,
                 'model_params': {
                     'base_channels': 128,

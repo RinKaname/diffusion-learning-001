@@ -7,24 +7,10 @@ from PIL import Image
 from tqdm import tqdm
 import argparse
 from torchvision.utils import save_image
+import torchvision.transforms as transforms
 
 from diffusion_model import UNet
 from diffusion_utils import NoiseScheduler, sample_diffusion
-
-
-def simple_transform(image: Image.Image, img_size: int = 64) -> torch.Tensor:
-    """Simple transform without torchvision dependencies."""
-    # Resize
-    image = image.resize((img_size, img_size), Image.BILINEAR)
-    
-    # Convert to tensor and normalize to [-1, 1]
-    img_array = np.array(image).astype(np.float32) / 255.0  # [0, 1]
-    img_array = (img_array - 0.5) / 0.5  # [-1, 1]
-    
-    # HWC -> CHW
-    img_tensor = torch.from_numpy(img_array.transpose(2, 0, 1))
-    
-    return img_tensor
 
 
 class AnimeFaceDataset(Dataset):
@@ -43,6 +29,12 @@ class AnimeFaceDataset(Dataset):
             raise ValueError(f"No images found in {root_dir}")
         
         print(f"Found {len(self.image_paths)} images")
+
+        self.transform = transforms.Compose([
+            transforms.Resize((self.img_size, self.img_size)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+        ])
     
     def __len__(self):
         return len(self.image_paths)
@@ -50,7 +42,7 @@ class AnimeFaceDataset(Dataset):
     def __getitem__(self, idx):
         img_path = self.image_paths[idx]
         image = Image.open(img_path).convert('RGB')
-        return simple_transform(image, self.img_size)
+        return self.transform(image)
 
 
 def train_epoch(
@@ -59,7 +51,8 @@ def train_epoch(
     dataloader: DataLoader,
     optimizer: torch.optim.Optimizer,
     device: torch.device,
-    epoch: int
+    epoch: int,
+    scaler: torch.cuda.amp.GradScaler = None
 ) -> float:
     """Train for one epoch."""
     model.train()
@@ -76,16 +69,23 @@ def train_epoch(
         # Add noise to clean images
         x_noisy, noise = scheduler.add_noise(batch, t)
         
-        # Predict noise
         optimizer.zero_grad()
-        noise_pred = model(x_noisy, t)
         
-        # Compute loss (MSE between predicted and actual noise)
-        loss = nn.functional.mse_loss(noise_pred, noise)
-        
-        # Backward pass
-        loss.backward()
-        optimizer.step()
+        # Predict noise with AMP
+        if scaler is not None:
+            with torch.amp.autocast(device_type='cuda' if device.type == 'cuda' else 'cpu'):
+                noise_pred = model(x_noisy, t)
+                loss = nn.functional.mse_loss(noise_pred, noise)
+
+            # Backward pass with scaler
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            noise_pred = model(x_noisy, t)
+            loss = nn.functional.mse_loss(noise_pred, noise)
+            loss.backward()
+            optimizer.step()
         
         total_loss += loss.item() * batch_size
         pbar.set_postfix({'loss': f'{loss.item():.4f}'})
@@ -173,12 +173,15 @@ def main():
     # Setup optimizer
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
     
+    # Setup scaler for AMP
+    scaler = torch.amp.GradScaler(device.type) if device.type == 'cuda' else None
+
     # Training loop
     print("\nStarting training...")
     best_loss = float('inf')
     
     for epoch in range(args.epochs):
-        avg_loss = train_epoch(model, scheduler, dataloader, optimizer, device, epoch)
+        avg_loss = train_epoch(model, scheduler, dataloader, optimizer, device, epoch, scaler)
         
         print(f"Epoch {epoch}: Average Loss = {avg_loss:.4f}")
         
@@ -189,6 +192,7 @@ def main():
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
+                'scaler_state_dict': scaler.state_dict() if scaler else None,
                 'loss': avg_loss,
             }, output_dir / 'best_model.pth')
             print(f"  Saved best model (loss: {best_loss:.4f})")
@@ -204,6 +208,7 @@ def main():
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
+                'scaler_state_dict': scaler.state_dict() if scaler else None,
                 'loss': avg_loss,
             }, output_dir / f'checkpoint_epoch_{epoch+1}.pth')
     
