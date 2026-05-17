@@ -134,6 +134,7 @@ def main():
     parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate')
     parser.add_argument('--num_timesteps', type=int, default=1000, help='Diffusion timesteps')
     parser.add_argument('--sample_every', type=int, default=5, help='Generate samples every N epochs')
+    parser.add_argument('--save_every', type=int, default=1, help='Save checkpoint every N epochs')
     parser.add_argument('--device', type=str, default=None, help='Device (cuda/cpu)')
     
     args = parser.parse_args()
@@ -206,7 +207,7 @@ def main():
             generate_samples(model, scheduler, device, num_samples=16, save_path=str(sample_path))
         
         # Save periodic checkpoint
-        if (epoch + 1) % 10 == 0:
+        if (epoch + 1) % args.save_every == 0:
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
