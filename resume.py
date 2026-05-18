@@ -152,6 +152,15 @@ def resume_training(args):
             }, save_path)
             print(f"💾 Checkpoint saved: {save_path}")
 
+            # Keep only last N checkpoints
+            if args.keep_last_n > 0:
+                import glob
+                checkpoints = glob.glob(os.path.join(checkpoints_dir, 'checkpoint_epoch_*.pth'))
+                checkpoints.sort(key=lambda x: int(os.path.basename(x).split('_')[2].split('.')[0]))
+                if len(checkpoints) > args.keep_last_n:
+                    for old_chkpt in checkpoints[:-args.keep_last_n]:
+                        os.remove(old_chkpt)
+
     print("🎉 Resume training finished!")
 
 if __name__ == '__main__':
@@ -163,6 +172,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size')
     parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate')
     parser.add_argument('--save_every', type=int, default=1, help='Save checkpoint every N epochs')
+    parser.add_argument('--keep_last_n', type=int, default=3, help='Number of recent checkpoints to keep')
     
     args = parser.parse_args()
     resume_training(args)

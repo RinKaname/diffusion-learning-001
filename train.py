@@ -135,6 +135,7 @@ def main():
     parser.add_argument('--num_timesteps', type=int, default=1000, help='Diffusion timesteps')
     parser.add_argument('--sample_every', type=int, default=5, help='Generate samples every N epochs')
     parser.add_argument('--save_every', type=int, default=1, help='Save checkpoint every N epochs')
+    parser.add_argument('--keep_last_n', type=int, default=3, help='Number of recent checkpoints to keep')
     parser.add_argument('--device', type=str, default=None, help='Device (cuda/cpu)')
     
     args = parser.parse_args()
@@ -208,13 +209,22 @@ def main():
         
         # Save periodic checkpoint
         if (epoch + 1) % args.save_every == 0:
+            save_path = checkpoints_dir / f'checkpoint_epoch_{epoch}.pth'
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'scaler_state_dict': scaler.state_dict() if scaler else None,
                 'loss': avg_loss,
-            }, checkpoints_dir / f'checkpoint_epoch_{epoch}.pth')
+            }, save_path)
+
+            # Keep only last N checkpoints
+            if args.keep_last_n > 0:
+                checkpoints = sorted(list(checkpoints_dir.glob('checkpoint_epoch_*.pth')),
+                                     key=lambda x: int(x.stem.split('_')[2]))
+                if len(checkpoints) > args.keep_last_n:
+                    for old_chkpt in checkpoints[:-args.keep_last_n]:
+                        old_chkpt.unlink()
     
     # Final sample generation
     print("\nGenerating final samples...")
