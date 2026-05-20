@@ -117,7 +117,7 @@ def sample_diffusion(
     else:
         timesteps = scheduler.get_sampling_schedule(num_steps)
     
-    # Sampling loop
+    # Sampling loop (Deterministic DDIM)
     for i, t in enumerate(timesteps):
         t_batch = torch.full((batch_size,), t, device=device, dtype=torch.long)
         
@@ -126,19 +126,6 @@ def sample_diffusion(
         
         # Compute alpha values for this timestep
         alpha_bar = scheduler.alphas_cumprod[t]
-        alpha = scheduler.alphas[t] if t > 0 else torch.tensor(1.0, device=device)
-        
-        # Posterior variance
-        if t == 0:
-            variance = 0
-        else:
-            beta = 1 - alpha
-            variance = beta * (1 - alpha_bar) / (1 - alpha)
-        
-        # Denoise step (simplified DDIM-style for speed)
-        if guidance_scale != 1.0:
-            # Classifier-free guidance would go here (requires conditional model)
-            pass
         
         # Compute predicted x_0
         pred_x0 = (x - noise_pred * torch.sqrt(1 - alpha_bar)) / torch.sqrt(alpha_bar)
@@ -146,21 +133,20 @@ def sample_diffusion(
         if clip_x0:
             pred_x0 = torch.clamp(pred_x0, -1, 1)
         
-        # Compute direction to next timestep
-        if t == 0:
-            x = pred_x0
+        # Get previous timestep alpha_bar (for DDIM)
+        # If we are at the last timestep in the sampling schedule, the "previous" t is just 0
+        if i + 1 < len(timesteps):
+            prev_t = timesteps[i + 1]
+            prev_alpha_bar = scheduler.alphas_cumprod[prev_t]
         else:
-            prev_alpha_bar = scheduler.alphas_cumprod[t - 1]
-            direction = torch.sqrt(1 - prev_alpha_bar) * noise_pred
-            x = torch.sqrt(prev_alpha_bar) * pred_x0 + direction
-            
-            # Add variance (optional, can be deterministic)
-            if variance > 0:
-                if isinstance(variance, torch.Tensor):
-                    var_tensor = variance.clone().detach().to(device=device, dtype=torch.float32)
-                else:
-                    var_tensor = torch.tensor(variance, device=device, dtype=torch.float32)
-                x += torch.randn_like(x) * torch.sqrt(var_tensor)
+            # When we reach the final step, prev_alpha_bar should be 1.0 (no noise)
+            prev_alpha_bar = torch.tensor(1.0, device=device)
+
+        # Compute direction pointing to x_t
+        direction = torch.sqrt(1 - prev_alpha_bar) * noise_pred
+
+        # Step back in time
+        x = torch.sqrt(prev_alpha_bar) * pred_x0 + direction
     
     return torch.clamp(x, -1, 1)
 
