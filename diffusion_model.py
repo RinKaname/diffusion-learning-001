@@ -58,7 +58,7 @@ class SelfAttention(nn.Module):
         self.norm = nn.GroupNorm(32, channels)
         self.qkv = nn.Conv2d(channels, channels * 3, 1)
         self.out = nn.Conv2d(channels, channels, 1)
-        self.scale = 1.0 / math.sqrt(channels)
+        # scale is handled by F.scaled_dot_product_attention now
 
     def forward(self, x):
         b, c, h, w = x.shape
@@ -66,13 +66,14 @@ class SelfAttention(nn.Module):
         qkv = self.qkv(h_norm)
         q, k, v = qkv.chunk(3, dim=1)
         
-        q = q.reshape(b, c, h * w).transpose(-2, -1)
-        k = k.reshape(b, c, h * w)
-        v = v.reshape(b, c, h * w).transpose(-2, -1)
+        # Reshape to (b, 1, seq_len, head_dim) for F.scaled_dot_product_attention
+        # Assuming single head attention where head_dim = c
+        q = q.reshape(b, c, h * w).transpose(-2, -1).unsqueeze(1)
+        k = k.reshape(b, c, h * w).transpose(-2, -1).unsqueeze(1)
+        v = v.reshape(b, c, h * w).transpose(-2, -1).unsqueeze(1)
         
-        attn = torch.softmax(q @ k * self.scale, dim=-1)
-        out = attn @ v
-        out = out.transpose(-2, -1).reshape(b, c, h, w)
+        out = torch.nn.functional.scaled_dot_product_attention(q, k, v)
+        out = out.squeeze(1).transpose(-2, -1).reshape(b, c, h, w)
         
         return x + self.out(out)
 
