@@ -42,9 +42,9 @@ class ResidualBlock(nn.Module):
         
         # Add time embedding
         time_emb = self.time_mlp(time_emb)
-        time_emb = time_emb[:, :, None, None]
+        time_emb = time_emb.unsqueeze(-1).unsqueeze(-1)
         scale, shift = time_emb.chunk(2, dim=1)
-        h = h * (scale + 1) + shift
+        h = torch.addcmul(shift, h, scale + 1)
         
         h = self.conv2(h)
         h = self.norm2(h)
@@ -64,13 +64,14 @@ class SelfAttention(nn.Module):
         b, c, h, w = x.shape
         h_norm = self.norm(x)
         qkv = self.qkv(h_norm)
-        q, k, v = qkv.chunk(3, dim=1)
+        qkv = qkv.view(b, 3, c, -1) # (b, 3, c, h*w)
+        q, k, v = qkv.unbind(dim=1) # (b, c, h*w) each
         
         # Reshape to (b, 1, seq_len, head_dim) for F.scaled_dot_product_attention
         # Assuming single head attention where head_dim = c
-        q = q.reshape(b, c, h * w).transpose(-2, -1).unsqueeze(1)
-        k = k.reshape(b, c, h * w).transpose(-2, -1).unsqueeze(1)
-        v = v.reshape(b, c, h * w).transpose(-2, -1).unsqueeze(1)
+        q = q.transpose(-2, -1).unsqueeze(1)
+        k = k.transpose(-2, -1).unsqueeze(1)
+        v = v.transpose(-2, -1).unsqueeze(1)
         
         out = torch.nn.functional.scaled_dot_product_attention(q, k, v)
         out = out.squeeze(1).transpose(-2, -1).reshape(b, c, h, w)
