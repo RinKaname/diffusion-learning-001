@@ -7,12 +7,19 @@ class SinusoidalPosEmb(nn.Module):
         super().__init__()
         self.dim = dim
 
-    def forward(self, time):
-        device = time.device
+        # ⚡ Bolt Optimization: Pre-compute frequency constants in init
+        # instead of recalculating them on every forward pass.
+        # This saves redundant log, exp, and arange operations.
         half_dim = self.dim // 2
         emb = math.log(10000) / (half_dim - 1)
-        emb = torch.exp(torch.arange(half_dim, device=device) * -emb)
-        emb = time[:, None] * emb[None, :]
+        emb = torch.exp(torch.arange(half_dim) * -emb)
+        self.register_buffer('emb', emb, persistent=False)
+
+    def forward(self, time):
+        # time is shape [B]
+        # self.emb is shape [half_dim]
+        # emb will be shape [B, half_dim]
+        emb = time[:, None] * self.emb[None, :]
         emb = torch.cat((emb.sin(), emb.cos()), dim=-1)
         return emb
 
