@@ -194,33 +194,30 @@ def interpolate_images(
     
     interpolated_noisy = torch.cat(interpolated_noisy, dim=0)
     
-    # Denoise all interpolated images
+    # Denoise all interpolated images in a single batch for improved performance
     # Note: This is a simplified approach - proper interpolation requires more careful handling
-    results = []
-    for interp in interpolated_noisy:
-        x = interp.unsqueeze(0)
-        timesteps = scheduler.get_sampling_schedule()
+    x = interpolated_noisy
+    batch_size = x.size(0)
+    timesteps = scheduler.get_sampling_schedule()
+
+    for t in timesteps:
+        t_batch = torch.full((batch_size,), t, device=device, dtype=torch.long)
+        noise_pred = model(x, t_batch)
         
-        for t in timesteps:
-            t_batch = torch.tensor([t], device=device)
-            noise_pred = model(x, t_batch)
-            
-            alpha_bar = scheduler.alphas_cumprod[t]
-            alpha = scheduler.alphas[t] if t > 0 else torch.tensor(1.0, device=device)
-            
-            pred_x0 = (x - noise_pred * torch.sqrt(1 - alpha_bar)) / torch.sqrt(alpha_bar)
-            pred_x0 = torch.clamp(pred_x0, -1, 1)
-            
-            if t == 0:
-                x = pred_x0
-            else:
-                prev_alpha_bar = scheduler.alphas_cumprod[t - 1]
-                direction = torch.sqrt(1 - prev_alpha_bar) * noise_pred
-                x = torch.sqrt(prev_alpha_bar) * pred_x0 + direction
+        alpha_bar = scheduler.alphas_cumprod[t]
+        alpha = scheduler.alphas[t] if t > 0 else torch.tensor(1.0, device=device)
         
-        results.append(x)
-    
-    return torch.cat(results, dim=0)
+        pred_x0 = (x - noise_pred * torch.sqrt(1 - alpha_bar)) / torch.sqrt(alpha_bar)
+        pred_x0 = torch.clamp(pred_x0, -1, 1)
+
+        if t == 0:
+            x = pred_x0
+        else:
+            prev_alpha_bar = scheduler.alphas_cumprod[t - 1]
+            direction = torch.sqrt(1 - prev_alpha_bar) * noise_pred
+            x = torch.sqrt(prev_alpha_bar) * pred_x0 + direction
+
+    return x
 
 
 if __name__ == "__main__":
