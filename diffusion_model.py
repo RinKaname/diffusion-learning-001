@@ -62,20 +62,34 @@ class SelfAttention(nn.Module):
 
     def forward(self, x):
         b, c, h, w = x.shape
-        h_norm = self.norm(x)
-        qkv = self.qkv(h_norm)
-        q, k, v = qkv.chunk(3, dim=1)
         
-        # Reshape to (b, 1, seq_len, head_dim) for F.scaled_dot_product_attention
-        # Assuming single head attention where head_dim = c
-        q = q.reshape(b, c, h * w).transpose(-2, -1).unsqueeze(1)
-        k = k.reshape(b, c, h * w).transpose(-2, -1).unsqueeze(1)
-        v = v.reshape(b, c, h * w).transpose(-2, -1).unsqueeze(1)
+        # Flatten and transpose: [b, c, h, w] -> [b, h*w, c]
+        h_norm = self.norm(x).reshape(b, c, h * w).transpose(1, 2)
         
-        out = torch.nn.functional.scaled_dot_product_attention(q, k, v)
-        out = out.squeeze(1).transpose(-2, -1).reshape(b, c, h, w)
+        # Apply qkv using linear for speed, keeping conv2d weights for compatibility
+        weight = self.qkv.weight.view(-1, c)
+        qkv = torch.nn.functional.linear(h_norm, weight, self.qkv.bias)
         
-        return x + self.out(out)
+        # Split into q, k, v: [b, h*w, c]
+        q, k, v = qkv.chunk(3, dim=-1)
+
+        # Add head dimension: [b, 1, h*w, c]
+        q = q.unsqueeze(1)
+        k = k.unsqueeze(1)
+        v = v.unsqueeze(1)
+
+        # Attention
+        out = torch.nn.functional.scaled_dot_product_attention(q, k, v).squeeze(1)
+
+        # Output projection using linear
+        out_weight = self.out.weight.view(c, -1)
+        out = torch.nn.functional.linear(out, out_weight, self.out.bias)
+
+        # Reshape back to image: [b, h*w, c] -> [b, c, h, w]
+        # Use reshape instead of view to handle non-contiguous memory after transpose
+        out = out.transpose(1, 2).reshape(b, c, h, w)
+
+        return x + out
 
 class UNet(nn.Module):
     def __init__(self, img_size=64, in_channels=3, out_channels=3, base_channels=128, ch_mult=(1, 2, 4)):
