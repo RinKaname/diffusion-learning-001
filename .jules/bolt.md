@@ -1,3 +1,7 @@
 ## 2024-05-24 - PyTorch Scaled Dot Product Attention
 **Learning:** PyTorch 2.0+ includes `torch.nn.functional.scaled_dot_product_attention`, which is highly optimized and automatically uses FlashAttention, Memory-Efficient Attention (xFormers), or an efficient math fallback depending on the hardware and inputs. Manual `torch.softmax(q @ k * scale) @ v` is much slower and uses significantly more memory since it instantiates the full `(b, heads, seq_len, seq_len)` attention matrix.
 **Action:** Always prefer `F.scaled_dot_product_attention` for attention computations instead of manually calculating the scaled dot product. It speeds up operations and reduces VRAM usage without additional dependencies.
+
+## 2026-05-29 - Precomputing Positional Embeddings
+**Learning:** When generating time or positional embeddings dynamically, precomputing static frequency components in `__init__` rather than recalculating them on each forward pass (`math.log`, `torch.exp`, `torch.arange`) saves CPU overhead and redundant device memory allocations per step. However, using `persistent=True` (the default for `register_buffer`) modifies the model's `state_dict`, breaking backwards compatibility with existing checkpoints.
+**Action:** Precompute static parameters in `__init__` to avoid repetitive math on the forward pass, and store them using `self.register_buffer('name', tensor, persistent=False)` to ensure they automatically move to the correct device alongside the module without altering the expected `state_dict` structure.
