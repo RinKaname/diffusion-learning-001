@@ -7,12 +7,18 @@ class SinusoidalPosEmb(nn.Module):
         super().__init__()
         self.dim = dim
 
-    def forward(self, time):
-        device = time.device
+        # Precompute frequencies for the time embedding
         half_dim = self.dim // 2
         emb = math.log(10000) / (half_dim - 1)
-        emb = torch.exp(torch.arange(half_dim, device=device) * -emb)
-        emb = time[:, None] * emb[None, :]
+        # We create the frequencies tensor here on CPU and register as a buffer
+        # persistent=False avoids saving it into the state_dict so we don't break checkpoints
+        emb = torch.exp(torch.arange(half_dim) * -emb)
+        self.register_buffer("freqs", emb, persistent=False)
+
+    def forward(self, time):
+        # time is shape [B], freqs is shape [half_dim]
+        # output is shape [B, half_dim]
+        emb = time[:, None] * self.freqs[None, :]
         emb = torch.cat((emb.sin(), emb.cos()), dim=-1)
         return emb
 
