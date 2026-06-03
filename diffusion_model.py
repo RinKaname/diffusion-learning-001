@@ -7,12 +7,19 @@ class SinusoidalPosEmb(nn.Module):
         super().__init__()
         self.dim = dim
 
-    def forward(self, time):
-        device = time.device
+        # Precompute frequencies to save computation and allocations in forward pass
         half_dim = self.dim // 2
         emb = math.log(10000) / (half_dim - 1)
-        emb = torch.exp(torch.arange(half_dim, device=device) * -emb)
-        emb = time[:, None] * emb[None, :]
+        freqs = torch.exp(torch.arange(half_dim) * -emb)
+
+        # persistent=False prevents it from being saved in state_dict
+        # keeping checkpoints backwards compatible
+        self.register_buffer('freqs', freqs, persistent=False)
+
+    def forward(self, time):
+        # time: (B,)
+        # self.freqs: (half_dim,)
+        emb = time[:, None] * self.freqs[None, :]
         emb = torch.cat((emb.sin(), emb.cos()), dim=-1)
         return emb
 
