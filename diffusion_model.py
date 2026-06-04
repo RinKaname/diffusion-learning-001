@@ -6,13 +6,17 @@ class SinusoidalPosEmb(nn.Module):
     def __init__(self, dim):
         super().__init__()
         self.dim = dim
-
-    def forward(self, time):
-        device = time.device
         half_dim = self.dim // 2
         emb = math.log(10000) / (half_dim - 1)
-        emb = torch.exp(torch.arange(half_dim, device=device) * -emb)
-        emb = time[:, None] * emb[None, :]
+        # Precompute the frequency tensor
+        emb = torch.exp(torch.arange(half_dim, dtype=torch.float32) * -emb)
+        # Register as a buffer so it moves with the module's device,
+        # but persistent=False prevents it from being saved in the state_dict (which breaks checkpoint loading)
+        self.register_buffer('emb', emb, persistent=False)
+
+    def forward(self, time):
+        # time is shape (batch_size,), self.emb is shape (half_dim,)
+        emb = time[:, None] * self.emb[None, :]
         emb = torch.cat((emb.sin(), emb.cos()), dim=-1)
         return emb
 
