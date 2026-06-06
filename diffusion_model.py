@@ -6,13 +6,17 @@ class SinusoidalPosEmb(nn.Module):
     def __init__(self, dim):
         super().__init__()
         self.dim = dim
+        # Precompute frequencies
+        half_dim = self.dim // 2
+        emb = math.log(10000) / (half_dim - 1)
+        emb = torch.exp(torch.arange(half_dim) * -emb)
+        # Use persistent=False to avoid saving to state_dict and breaking backwards compatibility
+        self.register_buffer('freqs', emb, persistent=False)
 
     def forward(self, time):
         device = time.device
-        half_dim = self.dim // 2
-        emb = math.log(10000) / (half_dim - 1)
-        emb = torch.exp(torch.arange(half_dim, device=device) * -emb)
-        emb = time[:, None] * emb[None, :]
+        freqs = self.freqs.to(device)
+        emb = time[:, None] * freqs[None, :]
         emb = torch.cat((emb.sin(), emb.cos()), dim=-1)
         return emb
 
