@@ -67,13 +67,14 @@ class SelfAttention(nn.Module):
         b, c, h, w = x.shape
         h_norm = self.norm(x)
         qkv = self.qkv(h_norm)
-        q, k, v = qkv.chunk(3, dim=1)
         
-        # Reshape to (b, 1, seq_len, head_dim) for F.scaled_dot_product_attention
-        # Assuming single head attention where head_dim = c
-        q = q.reshape(b, c, h * w).transpose(-2, -1).unsqueeze(1)
-        k = k.reshape(b, c, h * w).transpose(-2, -1).unsqueeze(1)
-        v = v.reshape(b, c, h * w).transpose(-2, -1).unsqueeze(1)
+        # Optimization: Batch tensor operations before splitting to reduce dispatcher overhead
+        # and memory allocations from reshaping non-contiguous chunks.
+        # Shape transforms:
+        # 1. reshape: (b, 3*c, h, w) -> (b, 3, 1, c, h*w)
+        # 2. transpose: (b, 3, 1, c, h*w) -> (b, 3, 1, h*w, c)
+        # 3. unbind: splits dim 1 into 3 tensors of shape (b, 1, h*w, c)
+        q, k, v = qkv.reshape(b, 3, 1, c, h * w).transpose(-2, -1).unbind(dim=1)
         
         out = torch.nn.functional.scaled_dot_product_attention(q, k, v)
         out = out.squeeze(1).transpose(-2, -1).reshape(b, c, h, w)
