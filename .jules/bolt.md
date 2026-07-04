@@ -5,3 +5,7 @@
 ## 2024-05-24 - Precomputing Static Tensors in Modules
 **Learning:** In PyTorch, computing static tensors (like frequencies for Sinusoidal Positional Embeddings) inside the `forward` method causes unnecessary redundant calculations and tensor allocations every pass. Using `self.register_buffer(name, tensor, persistent=False)` in `__init__` precomputes it once and keeps it on the correct device automatically without saving it to the `state_dict`, avoiding backward compatibility issues with existing checkpoints.
 **Action:** When working with positional embeddings or other modules with deterministic, input-independent static tensors, precompute them in `__init__` and register them as non-persistent buffers instead of re-evaluating them in `forward`.
+
+## 2024-05-24 - Batching Tensor Operations Before Unbinding / Chunking
+**Learning:** Applying tensor operations like `reshape` and `transpose` to a combined `qkv` tensor before splitting it via `unbind` or `chunk` significantly reduces PyTorch dispatcher overhead and avoids expensive memory allocations caused by reshaping non-contiguous tensors.
+**Action:** When working with combined tensors like `qkv` in PyTorch, reshape and transpose the combined tensor first, then split it along the combined dimension instead of splitting first and repeating the operations on each chunk.
