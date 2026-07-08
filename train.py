@@ -60,7 +60,8 @@ def train_epoch(
     
     pbar = tqdm(dataloader, desc=f"Epoch {epoch}")
     for batch in pbar:
-        batch = batch.to(device)
+        # non_blocking=True allows overlapping CPU-to-GPU copies with computation
+        batch = batch.to(device, non_blocking=True)
         batch_size = batch.size(0)
         
         # Sample random timesteps
@@ -69,7 +70,8 @@ def train_epoch(
         # Add noise to clean images
         x_noisy, noise = scheduler.add_noise(batch, t)
         
-        optimizer.zero_grad()
+        # set_to_none=True deallocates the gradient tensors instead of zeroing them
+        optimizer.zero_grad(set_to_none=True)
         
         # Predict noise with AMP
         if scaler is not None:
@@ -146,6 +148,10 @@ def main():
     else:
         device = torch.device(args.device)
     
+    if device.type == 'cuda':
+        # Enable cuDNN benchmark for faster convolutions when input sizes are fixed
+        torch.backends.cudnn.benchmark = True
+
     print(f"Using device: {device}")
     
     # Create output directory
