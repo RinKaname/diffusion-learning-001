@@ -9,3 +9,7 @@
 ## 2026-07-07 - PyTorch Tensor Batching Before Splitting
 **Learning:** In PyTorch attention module implementations, applying tensor operations like `reshape` and `transpose` to the combined `qkv` tensor before using `unbind` or `chunk` significantly reduces PyTorch dispatcher overhead and avoids expensive memory allocations caused by reshaping non-contiguous tensors (which occurs when chunking along the channel dimension first).
 **Action:** When working with combined `qkv` tensors, batch shape manipulations on the single tensor before splitting it into `q`, `k`, and `v`.
+
+## 2024-05-24 - PyTorch Training Loop Optimization Defaults
+**Learning:** Default PyTorch training loop configurations leave performance on the table. Setting `optimizer.zero_grad(set_to_none=True)` prevents unnecessary memory writes, using `non_blocking=True` for data transfers with pinned memory allows asynchronous copies overlapping CPU/GPU, and enabling `torch.backends.cudnn.benchmark = True` for fixed-size inputs allows optimal convolution algorithm selection.
+**Action:** Always apply `set_to_none=True` in `zero_grad`, use `non_blocking=True` on tensor transfers to devices when `pin_memory=True` is active, and set `torch.backends.cudnn.benchmark = True` when input sizes are static.
