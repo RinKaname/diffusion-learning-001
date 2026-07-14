@@ -75,6 +75,8 @@ def test_pipeline():
     print("=" * 60)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    if device.type == 'cuda':
+        torch.backends.cudnn.benchmark = True
     print(f"\nUsing device: {device}")
     
     # 1. Test Model Creation
@@ -107,7 +109,7 @@ def test_pipeline():
     model.train()
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
     
-    batch = batch.to(device)
+    batch = batch.to(device, non_blocking=True)
     timesteps = torch.randint(0, 1000, (batch.size(0),), device=device)
     
     # Add noise
@@ -124,7 +126,7 @@ def test_pipeline():
     print("  Running backward pass...")
     loss.backward()
     optimizer.step()
-    optimizer.zero_grad()
+    optimizer.zero_grad(set_to_none=True)
     
     print(f"✓ Training step successful (loss: {loss.item():.4f})")
     
