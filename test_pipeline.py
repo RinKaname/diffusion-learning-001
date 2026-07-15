@@ -124,7 +124,7 @@ def test_pipeline():
     print("  Running backward pass...")
     loss.backward()
     optimizer.step()
-    optimizer.zero_grad()
+    optimizer.zero_grad(set_to_none=True)
     
     print(f"✓ Training step successful (loss: {loss.item():.4f})")
     
