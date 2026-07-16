@@ -27,6 +27,10 @@ def resume_training(args):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
 
+    # Optimize for fixed input size
+    if device.type == 'cuda':
+        torch.backends.cudnn.benchmark = True
+
     # 1. Find Checkpoint
     if args.checkpoint_path:
         checkpoint_path = args.checkpoint_path
@@ -104,8 +108,8 @@ def resume_training(args):
         num_batches = 0
 
         for batch in pbar:
-            batch = batch.to(device)
-            optimizer.zero_grad()
+            batch = batch.to(device, non_blocking=True)
+            optimizer.zero_grad(set_to_none=True)
 
             # Forward pass
             t = torch.randint(0, scheduler.num_timesteps, (batch.size(0),), device=device)
