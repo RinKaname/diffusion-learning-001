@@ -95,7 +95,8 @@ def resume_training(args):
         batch_size=args.batch_size, 
         shuffle=True, 
         num_workers=4,  # Speed up loading
-        pin_memory=True
+        pin_memory=True,
+        persistent_workers=True  # Prevent worker respawn overhead between epochs
     )
 
     # 6. Training Loop (Continuation)

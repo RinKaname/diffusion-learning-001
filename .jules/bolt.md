@@ -13,3 +13,7 @@
 ## 2024-05-24 - PyTorch Training Loop Optimization Defaults
 **Learning:** For this project's fixed 64x64 input size, `torch.backends.cudnn.benchmark = True` significantly accelerates convolutions. Additionally, because the DataLoader uses `pin_memory=True`, using `batch.to(device, non_blocking=True)` enables asynchronous memory transfers, and `optimizer.zero_grad(set_to_none=True)` saves VRAM during training.
 **Action:** Always apply these default performance optimizations (`cudnn.benchmark`, `non_blocking=True`, and `set_to_none=True`) in PyTorch training scripts within this codebase.
+
+## 2024-05-25 - PyTorch DataLoader Persistent Workers
+**Learning:** In PyTorch, when `num_workers > 0`, the DataLoader by default shuts down and respawns worker processes at the end of every epoch. This introduces significant CPU and time overhead between epochs during training.
+**Action:** Always set `persistent_workers=True` in DataLoaders when `num_workers > 0` to keep worker processes alive across epochs and eliminate respawn latency.
